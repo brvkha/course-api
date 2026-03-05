@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  # 1. Cơ sở dữ liệu quan hệ (Mô phỏng Aurora MySQL)
+  mysql-db:
+    image: mysql:8.0
+    container_name: local-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: course_demo
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql # Mount volume để dữ liệu không bị mất khi tắt container
+
+  # 2. Cơ sở dữ liệu NoSQL (Mô phỏng AWS DynamoDB)
+  dynamodb-local:
+    image: amazon/dynamodb-local
+    container_name: local-dynamodb
+    ports:
+      - "8000:8000"
+    command: "-jar DynamoDBLocal.jar -sharedDb -inMemory" # Chạy in-memory cho nhẹ máy khi dev
+
+  # 3. Ứng dụng Spring Boot của chúng ta
+  course-api:
+    build:
+      context: . # Chỉ định thư mục chứa Dockerfile (dấu chấm nghĩa là thư mục hiện tại)
+    container_name: course-api-backend
+    ports:
+      - "8080:8080"
+    environment:
+      # KỸ THUẬT DEVOPS: Ghi đè cấu hình trong application.yml bằng biến môi trường (Environment Variables)
+      # Thay vì localhost, chúng ta trỏ domain về tên service là 'mysql-db' và 'dynamodb-local'
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-db:3306/course_demo?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+      AWS_DYNAMODB_ENDPOINT: http://dynamodb-local:8000
+    depends_on:
+      - mysql-db
+      - dynamodb-local
+    # Khởi động lại nếu container bị crash
+    restart: on-failure
+
+# Khai báo Volume để lưu trữ dữ liệu cứng
+volumes:
+  mysql_data:
